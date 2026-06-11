@@ -5,8 +5,9 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
-import RNFS from 'react-native-fs';
-import {enrollUser} from '../database/database';
+
+import CameraService from '../services/camera/CameraService';
+import { enrollUser } from '../database/database';
 
 type Props = {
   mode: 'enroll' | 'verify';
@@ -15,48 +16,87 @@ type Props = {
   onDone: (result?: {id: string; name: string; photo: string}) => void;
 };
 
-export default function CameraScreen({mode, name, userId, onDone}: Props) {
+export default function CameraScreen({
+  mode,
+  name,
+  userId,
+  onDone,
+}: Props) {
   const camera = useRef<Camera>(null);
+
   const device = useCameraDevice('front');
+
   const {hasPermission, requestPermission} = useCameraPermission();
+
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!hasPermission) requestPermission();
+    if (!hasPermission) {
+      requestPermission();
+    }
   }, [hasPermission, requestPermission]);
 
-  if (!hasPermission)
+  if (!hasPermission) {
     return (
       <View style={styles.center}>
         <Text>Camera permission required</Text>
       </View>
     );
-  if (!device)
+  }
+
+  if (!device) {
     return (
       <View style={styles.center}>
         <Text>No camera found</Text>
       </View>
     );
+  }
 
   const handleCapture = async () => {
     if (!camera.current || busy) return;
+
     setBusy(true);
+
     try {
       const photo = await camera.current.takePhoto();
-      const base64 = await RNFS.readFile(photo.path, 'base64');
+
+      const id = `${userId}_${Date.now()}`;
+
+      const savedPath = await CameraService.savePhoto(
+        photo.path,
+        id,
+      );
 
       if (mode === 'enroll') {
-        const id = `${userId}_${Date.now()}`;
-        enrollUser(id, name!, userId!, base64);
-        Alert.alert('Enrolled!', `${name} has been enrolled.`, [
-          {text: 'OK', onPress: () => onDone()},
-        ]);
+        enrollUser(
+          id,
+          name!,
+          userId!,
+          savedPath,
+        );
+
+        Alert.alert(
+          'Enrollment Successful',
+          `${name} enrolled successfully.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => onDone(),
+            },
+          ],
+        );
       } else {
-        // verify mode — return photo to VerifyScreen for matching
-        onDone({id: userId ?? '', name: name ?? '', photo: base64});
+        onDone({
+          id,
+          name: name ?? '',
+          photo: savedPath,
+        });
       }
     } catch (e) {
-      Alert.alert('Capture failed', String(e));
+      Alert.alert(
+        'Capture Failed',
+        String(e),
+      );
     } finally {
       setBusy(false);
     }
@@ -71,18 +111,26 @@ export default function CameraScreen({mode, name, userId, onDone}: Props) {
         isActive={true}
         photo={true}
       />
+
       <View style={styles.overlay}>
         <Text style={styles.hint}>
-          {mode === 'enroll' ? `Enrolling: ${name}` : 'Look at camera'}
+          {mode === 'enroll'
+            ? `Enrolling: ${name}`
+            : 'Look at camera'}
         </Text>
       </View>
+
       <View style={styles.captureContainer}>
         <TouchableOpacity
           style={[styles.btn, busy && {opacity: 0.5}]}
-          onPress={handleCapture}
-          disabled={busy}>
+          disabled={busy}
+          onPress={handleCapture}>
           <Text style={styles.btnText}>
-            {busy ? 'Processing...' : mode === 'enroll' ? 'Enroll' : 'Verify'}
+            {busy
+              ? 'Processing...'
+              : mode === 'enroll'
+              ? 'Enroll'
+              : 'Verify'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -91,7 +139,12 @@ export default function CameraScreen({mode, name, userId, onDone}: Props) {
 }
 
 const styles = StyleSheet.create({
-  center: {flex: 1, justifyContent: 'center', alignItems: 'center'},
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   overlay: {
     position: 'absolute',
     top: 60,
@@ -100,17 +153,28 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
   },
-  hint: {color: '#fff', fontSize: 16},
+
+  hint: {
+    color: '#fff',
+    fontSize: 16,
+  },
+
   captureContainer: {
     position: 'absolute',
     bottom: 60,
     alignSelf: 'center',
   },
+
   btn: {
     backgroundColor: '#2563eb',
     paddingHorizontal: 40,
     paddingVertical: 16,
     borderRadius: 50,
   },
-  btnText: {color: '#fff', fontSize: 18, fontWeight: '600'},
+
+  btnText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
 });
