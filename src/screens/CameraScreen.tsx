@@ -8,6 +8,8 @@ import {
 
 import CameraService from '../services/camera/CameraService';
 import { enrollUser } from '../database/database';
+import UserRepository from '../repositories/UserRepository';
+import FaceDetectionService from '../services/faceDetection/FaceDetectionService';
 
 type Props = {
   mode: 'enroll' | 'verify';
@@ -52,55 +54,74 @@ export default function CameraScreen({
     );
   }
 
-  const handleCapture = async () => {
-    if (!camera.current || busy) return;
+const handleCapture = async () => {
+  if (!camera.current || busy) return;
 
-    setBusy(true);
+  setBusy(true);
 
-    try {
-      const photo = await camera.current.takePhoto();
+  try {
+    // 1. Capture photo
+    const photo = await camera.current.takePhoto();
 
-      const id = `${userId}_${Date.now()}`;
+    // 2. Generate unique enrollment id
+    const id = `${userId}_${Date.now()}`;
 
-      const savedPath = await CameraService.savePhoto(
-        photo.path,
-        id,
-      );
+    // 3. Save image permanently
+    const savedPath = await CameraService.savePhoto(
+      photo.path,
+      id,
+    );
 
-      if (mode === 'enroll') {
-        enrollUser(
-          id,
-          name!,
-          userId!,
-          savedPath,
-        );
+    // 4. Run Google ML Kit
+    const detection =
+      await FaceDetectionService.detect(savedPath);
 
-        Alert.alert(
-          'Enrollment Successful',
-          `${name} enrolled successfully.`,
-          [
-            {
-              text: 'OK',
-              onPress: () => onDone(),
-            },
-          ],
-        );
-      } else {
-        onDone({
-          id,
-          name: name ?? '',
-          photo: savedPath,
-        });
-      }
-    } catch (e) {
+    // 5. Validate exactly one face
+    if (detection.faceCount !== 1) {
       Alert.alert(
-        'Capture Failed',
-        String(e),
+        'Enrollment Failed',
+        `Expected exactly one face.\nDetected ${detection.faceCount}.`,
       );
-    } finally {
-      setBusy(false);
+      return;
     }
-  };
+
+    // 6. Enroll
+    if (mode === 'enroll') {
+      await UserRepository.create(
+        id,
+        name!,
+        userId!,
+        savedPath,
+      );
+
+      Alert.alert(
+        'Enrollment Successful',
+        `${name} enrolled successfully.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => onDone(),
+          },
+        ],
+      );
+    } else {
+      onDone({
+        id,
+        name: name ?? '',
+        photo: savedPath,
+      });
+    }
+  } catch (e) {
+    console.error(e);
+
+    Alert.alert(
+      'Capture Failed',
+      String(e),
+    );
+  } finally {
+    setBusy(false);
+  }
+};
 
   return (
     <>

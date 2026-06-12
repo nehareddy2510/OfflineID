@@ -1,18 +1,25 @@
+import {NativeModules} from 'react-native';
+
+const {FaceDetection} = NativeModules;
+
 export interface FaceDetectionResult {
-  success: boolean;
   faceCount: number;
-  message: string;
 }
 
 class FaceDetectionService {
-  async detect(imagePath: string): Promise<FaceDetectionResult> {
-    // ML Kit will be integrated here later
+  async detect(
+    imagePath: string,
+  ): Promise<FaceDetectionResult> {
+    return await FaceDetection.detect(imagePath);
+  }
 
-    return {
-      success: true,
-      faceCount: 1,
-      message: "Mock detection successful",
-    };
+  async hasExactlyOneFace(
+    imagePath: string,
+  ): Promise<boolean> {
+    const result =
+      await this.detect(imagePath);
+
+    return result.faceCount === 1;
   }
 }
 
