@@ -1,5 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+
 import {
   Camera,
   useCameraDevice,
@@ -7,15 +14,20 @@ import {
 } from 'react-native-vision-camera';
 
 import CameraService from '../services/camera/CameraService';
-import { enrollUser } from '../database/database';
-import UserRepository from '../repositories/UserRepository';
 import FaceDetectionService from '../services/faceDetection/FaceDetectionService';
+import FaceRecognitionService from '../services/faceRecognition/FaceRecognitionService';
+import UserRepository from '../repositories/UserRepository';
 
 type Props = {
   mode: 'enroll' | 'verify';
   name?: string;
   userId?: string;
-  onDone: (result?: {id: string; name: string; photo: string}) => void;
+  onDone: (result?: {
+    id: string;
+    name?: string;
+    photo: string;
+    embedding?: number[];
+  }) => void;
 };
 
 export default function CameraScreen({
@@ -24,106 +36,226 @@ export default function CameraScreen({
   userId,
   onDone,
 }: Props) {
+
   const camera = useRef<Camera>(null);
 
   const device = useCameraDevice('front');
 
-  const {hasPermission, requestPermission} = useCameraPermission();
+  const {hasPermission, requestPermission} =
+    useCameraPermission();
 
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] =
+    useState(false);
 
   useEffect(() => {
+
     if (!hasPermission) {
       requestPermission();
     }
-  }, [hasPermission, requestPermission]);
+
+  }, [
+    hasPermission,
+    requestPermission,
+  ]);
 
   if (!hasPermission) {
+
     return (
       <View style={styles.center}>
-        <Text>Camera permission required</Text>
+        <Text>
+          Camera permission required
+        </Text>
       </View>
     );
+
   }
 
   if (!device) {
+
     return (
       <View style={styles.center}>
-        <Text>No camera found</Text>
+        <Text>
+          No camera found
+        </Text>
       </View>
     );
+
   }
+    const handleCapture = async () => {
 
-const handleCapture = async () => {
-  if (!camera.current || busy) return;
-
-  setBusy(true);
-
-  try {
-    // 1. Capture photo
-    const photo = await camera.current.takePhoto();
-
-    // 2. Generate unique enrollment id
-    const id = `${userId}_${Date.now()}`;
-
-    // 3. Save image permanently
-    const savedPath = await CameraService.savePhoto(
-      photo.path,
-      id,
-    );
-
-    // 4. Run Google ML Kit
-    const detection =
-      await FaceDetectionService.detect(savedPath);
-
-    // 5. Validate exactly one face
-    if (detection.faceCount !== 1) {
-      Alert.alert(
-        'Enrollment Failed',
-        `Expected exactly one face.\nDetected ${detection.faceCount}.`,
-      );
+    if (!camera.current || busy) {
       return;
     }
 
-    // 6. Enroll
-    if (mode === 'enroll') {
-      await UserRepository.create(
-        id,
-        name!,
-        userId!,
-        savedPath,
+    setBusy(true);
+
+    try {
+
+      const photo =
+        await camera.current.takePhoto();
+
+      const id =
+        `${userId}_${Date.now()}`;
+
+      const savedPath =
+        await CameraService.savePhoto(
+          photo.path,
+          id,
+        );
+
+      const detection =
+        await FaceDetectionService.detect(
+          savedPath,
+        );
+
+      if (
+        detection.faceCount !== 1
+      ) {
+
+        Alert.alert(
+          "Enrollment Failed",
+          `Detected ${detection.faceCount} faces.`,
+        );
+
+        return;
+
+      }
+
+      const embedding =
+        await FaceRecognitionService.getEmbedding(
+          savedPath,
+        );
+
+      console.log(
+        "================================"
+      );
+
+      console.log(
+        "EMBEDDING LENGTH",
+        embedding.length,
+      );
+
+      console.log(
+        embedding,
+      );
+
+      console.log(
+        "================================"
       );
 
       Alert.alert(
-        'Enrollment Successful',
-        `${name} enrolled successfully.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => onDone(),
-          },
-        ],
+        "Embedding",
+        JSON.stringify(
+
+embedding.slice(
+
+0,
+
+10,
+
+),
+
+),
       );
-    } else {
-      onDone({
-        id,
-        name: name ?? '',
-        photo: savedPath,
-      });
+      console.log(
+
+"FULL EMBEDDING",
+
+embedding,
+
+);
+
+console.log(
+
+JSON.stringify(
+
+embedding,
+
+),
+
+);
+            if (
+        mode === "enroll"
+      ) {
+
+        await UserRepository.create(
+
+          id,
+
+          name!,
+
+          userId!,
+
+          savedPath,
+
+          JSON.stringify(
+            embedding,
+          ),
+
+        );
+
+        Alert.alert(
+
+          "Enrollment Successful",
+
+          `${name} enrolled successfully.`,
+
+          [
+
+            {
+
+              text: "OK",
+
+              onPress: () => onDone(),
+
+            },
+
+          ],
+
+        );
+
+      }
+
+      else {
+
+        onDone({
+
+          id,
+
+          name,
+
+          photo: savedPath,
+
+          embedding,
+
+        });
+
+      }
+
     }
-  } catch (e) {
-    console.error(e);
 
-    Alert.alert(
-      'Capture Failed',
-      String(e),
-    );
-  } finally {
-    setBusy(false);
-  }
-};
+    catch (e) {
 
-  return (
+      console.log(e);
+
+      Alert.alert(
+
+        "Capture Failed",
+
+        String(e),
+
+      );
+
+    }
+
+    finally {
+
+      setBusy(false);
+
+    }
+
+  };
+    return (
     <>
       <Camera
         ref={camera}
@@ -135,67 +267,78 @@ const handleCapture = async () => {
 
       <View style={styles.overlay}>
         <Text style={styles.hint}>
-          {mode === 'enroll'
-            ? `Enrolling: ${name}`
-            : 'Look at camera'}
+          {
+            mode === "enroll"
+              ? `Enrolling: ${name}`
+              : "Look at camera"
+          }
         </Text>
       </View>
 
       <View style={styles.captureContainer}>
         <TouchableOpacity
-          style={[styles.btn, busy && {opacity: 0.5}]}
+          style={[
+            styles.btn,
+            busy && {opacity: 0.5},
+          ]}
           disabled={busy}
-          onPress={handleCapture}>
+          onPress={handleCapture}
+        >
           <Text style={styles.btnText}>
-            {busy
-              ? 'Processing...'
-              : mode === 'enroll'
-              ? 'Enroll'
-              : 'Verify'}
+            {
+              busy
+                ? "Processing..."
+                : mode === "enroll"
+                ? "Enroll"
+                : "Verify"
+            }
           </Text>
         </TouchableOpacity>
       </View>
     </>
   );
+
 }
 
 const styles = StyleSheet.create({
+
   center: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 60,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
     padding: 10,
     borderRadius: 8,
   },
 
   hint: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
   },
 
   captureContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
 
   btn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
     paddingHorizontal: 40,
     paddingVertical: 16,
     borderRadius: 50,
   },
 
   btnText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
+
 });

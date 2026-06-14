@@ -2,21 +2,23 @@ import React, {useState} from 'react';
 import {View, Text, StyleSheet, FlatList, TouchableOpacity, Alert} from 'react-native';
 import {getAllUsers, logAttendance} from '../database/database';
 import CameraScreen from './CameraScreen';
+import FaceRecognitionService from '../services/faceRecognition/FaceRecognitionService';
+
+import cosineSimilarity from '../utils/cosineSimilarity';
+
 
 type Props = {onBack: () => void};
 
-// MVP face match: compare base64 length as a proxy (same device/lighting = close length)
-// Replace with pixel diff or ML embedding when TFLite is integrated
-function matchFace(capturedB64: string, storedB64: string): boolean {
-  const diff = Math.abs(capturedB64.length - storedB64.length);
-  const ratio = diff / storedB64.length;
-  return ratio < 0.08; // within 8% size = likely same face/lighting
-}
+// function matchFace(capturedB64: string, storedB64: string): boolean {
+//   const diff = Math.abs(capturedB64.length - storedB64.length);
+//   const ratio = diff / storedB64.length;
+//   return ratio < 0.08; // within 8% size = likely same face/lighting
+// }
+
 
 export default function VerifyScreen({onBack}: Props) {
   const [step, setStep] = useState<'list' | 'camera' | 'done'>('list');
-  const [selected, setSelected] = useState<{id: string; name: string; photo: string} | null>(null);
-  const users = getAllUsers();
+  const users = getAllUsers() as any[];
 
   if (users.length === 0) {
     return (
@@ -29,25 +31,98 @@ export default function VerifyScreen({onBack}: Props) {
     );
   }
 
-  if (step === 'camera') {
-    return (
-      <CameraScreen
-        mode="verify"
-        onDone={result => {
-          if (!result) {setStep('list'); return;}
-          // compare captured photo against all enrolled users
-          const match = users.find((u: any) => matchFace(result.photo, u.photo_base64));
-          if (match) {
-            logAttendance(match.id, match.name, 'present');
-            Alert.alert('✅ Verified', `Welcome, ${match.name}!`, [{text: 'OK', onPress: onBack}]);
-          } else {
-            logAttendance('unknown', 'Unknown', 'failed');
-            Alert.alert('❌ No Match', 'Face not recognized.', [{text: 'Try Again', onPress: () => setStep('camera')}, {text: 'Back', onPress: onBack}]);
+if (step === 'camera') {
+  return (
+    <CameraScreen
+      mode="verify"
+      onDone={async (result) => {
+        if (!result) {
+          setStep('list');
+          return;
+        }
+
+        const embedding =
+          await FaceRecognitionService.getEmbedding(
+            result.photo,
+          );
+
+        let bestUser: any = null;
+        let bestScore = -1;
+
+        for (const user of users as any[]) {
+          if (!user.embedding) {
+            continue;
           }
-        }}
-      />
-    );
-  }
+
+          const storedEmbedding = JSON.parse(
+            user.embedding,
+          );
+
+          const score = cosineSimilarity(
+            embedding,
+            storedEmbedding,
+          );
+
+          console.log(
+            user.name,
+            score,
+          );
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestUser = user;
+          }
+        }
+
+        console.log(
+          'BEST SCORE',
+          bestScore,
+        );
+
+        if (
+          bestUser &&
+          bestScore > 0.65
+        ) {
+          logAttendance(
+            bestUser.id,
+            bestUser.name,
+            'present',
+          );
+
+          Alert.alert(
+            'Verified',
+            `${bestUser.name}\nScore: ${bestScore}`,
+            [
+              {
+                text: 'OK',
+                onPress: onBack,
+              },
+            ],
+          );
+        } else {
+          logAttendance(
+            'unknown',
+            'Unknown',
+            'failed',
+          );
+
+          Alert.alert(
+            'No Match',
+            `Best Score: ${bestScore}`,
+            [
+              {
+                text: 'Retry',
+                onPress: () =>
+                  setStep('camera'),
+              },
+            ],
+          );
+        }
+      }}
+    />
+  );
+}
+
 
   return (
     <View style={styles.container}>

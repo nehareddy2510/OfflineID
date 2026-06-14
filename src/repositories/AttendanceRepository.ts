@@ -1,24 +1,40 @@
 import {
-logAttendance,
-getAttendanceLogs,
-} from "../database/database";
+  logAttendance,
+  getAttendanceLogs,
+} from '../database/database';
 
 class AttendanceRepository {
-async mark(
-userId: string,
-userName: string,
-status: string,
-) {
-logAttendance(
-userId,
-userName,
-status,
-);
-}
 
-async getLogs() {
-return getAttendanceLogs();
-}
+  async markPresent(
+    userId: string,
+    userName: string,
+  ) {
+
+    logAttendance(
+      userId,
+      userName,
+      'present',
+    );
+
+  }
+
+  async markFailed() {
+
+    logAttendance(
+      'unknown',
+      'Unknown',
+      'failed',
+    );
+
+  }
+
+  async getLogs() {
+
+    return getAttendanceLogs();
+
+  }
+
 }
 
 export default new AttendanceRepository();
+

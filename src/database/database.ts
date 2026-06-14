@@ -13,9 +13,17 @@ export function initDB() {
       name TEXT NOT NULL,
       employee_id TEXT NOT NULL UNIQUE,
       image_path TEXT NOT NULL,
+      embedding TEXT,
       created_at INTEGER NOT NULL
     );
   `);
+
+  try {
+    db.execute(`
+      ALTER TABLE enrolled_users
+      ADD COLUMN embedding TEXT;
+    `);
+  } catch (e) {}
 
   db.execute(`
     CREATE TABLE IF NOT EXISTS attendance_logs (
@@ -33,6 +41,7 @@ export function enrollUser(
   name: string,
   employeeId: string,
   imagePath: string,
+  embedding: string | null = null,
 ) {
   db.execute(
     `
@@ -42,15 +51,17 @@ export function enrollUser(
       name,
       employee_id,
       image_path,
+      embedding,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?)
     `,
     [
       id,
       name,
       employeeId,
       imagePath,
+      embedding,
       Date.now(),
     ],
   );

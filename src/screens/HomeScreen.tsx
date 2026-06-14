@@ -1,5 +1,6 @@
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import { getAllUsers } from '../database/database';
 
 export default function HomeScreen({
   onEnroll, onVerify, onLogs,
@@ -20,6 +21,18 @@ export default function HomeScreen({
       <TouchableOpacity style={[styles.btn, {backgroundColor: '#7c3aed'}]} onPress={onLogs}>
         <Text style={styles.btnText}>Attendance Logs</Text>
       </TouchableOpacity>
+      //temporary button to print users for debugging
+      <TouchableOpacity
+  onPress={()=>{
+    console.log(
+      getAllUsers(),
+    );
+  }}
+>
+  <Text>
+    PRINT USERS
+  </Text>
+</TouchableOpacity>
     </View>
   );
 }

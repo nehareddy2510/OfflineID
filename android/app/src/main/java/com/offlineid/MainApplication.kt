@@ -22,6 +22,9 @@ class MainApplication : Application(), ReactApplication {
         add(
             FaceDetectionPackage()
         )
+        add(
+            FaceRecognitionPackage()
+        )
 
     }
 
