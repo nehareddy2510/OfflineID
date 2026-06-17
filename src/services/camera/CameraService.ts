@@ -1,24 +1,59 @@
 import RNFS from 'react-native-fs';
 
 class CameraService {
+
   async savePhoto(
     originalPath: string,
     employeeId: string,
   ): Promise<string> {
-    const usersFolder = `${RNFS.DocumentDirectoryPath}/users`;
 
-    const exists = await RNFS.exists(usersFolder);
+    const usersFolder =
+      `${RNFS.DocumentDirectoryPath}/users`;
+
+    const exists =
+      await RNFS.exists(
+        usersFolder,
+      );
 
     if (!exists) {
-      await RNFS.mkdir(usersFolder);
+
+      await RNFS.mkdir(
+        usersFolder,
+      );
+
     }
 
-    const destinationPath = `${usersFolder}/${employeeId}.jpg`;
+    const destinationPath =
+      `${usersFolder}/${employeeId}.jpg`;
 
-    await RNFS.copyFile(originalPath, destinationPath);
+    await RNFS.copyFile(
+      originalPath,
+      destinationPath,
+    );
 
     return destinationPath;
+
   }
+
+  async deleteFile(
+    path: string,
+  ) {
+
+    const exists =
+      await RNFS.exists(
+        path,
+      );
+
+    if(exists){
+
+      await RNFS.unlink(
+        path,
+      );
+
+    }
+
+  }
+
 }
 
 export default new CameraService();

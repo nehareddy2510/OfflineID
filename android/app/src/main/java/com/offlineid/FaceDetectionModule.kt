@@ -26,12 +26,20 @@ class FaceDetectionModule(
                 android.net.Uri.fromFile(File(imagePath))
             )
 
-        val options =
-            FaceDetectorOptions.Builder()
-                .setPerformanceMode(
-                    FaceDetectorOptions.PERFORMANCE_MODE_FAST
-                )
-                .build()
+       val options =
+    FaceDetectorOptions.Builder()
+
+        .setPerformanceMode(
+            FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE
+        )
+
+        .enableTracking()
+
+        .setClassificationMode(
+            FaceDetectorOptions.CLASSIFICATION_MODE_ALL
+        )
+
+        .build()
 
         val detector =
             FaceDetection.getClient(options)
@@ -42,9 +50,37 @@ class FaceDetectionModule(
                 val map = Arguments.createMap()
 
                 map.putInt(
-                    "faceCount",
-                    faces.size
-                )
+    "faceCount",
+    faces.size
+)
+
+if (faces.isNotEmpty()) {
+
+    val face = faces[0]
+
+    map.putDouble(
+        "headY",
+        face.headEulerAngleY.toDouble()
+    )
+
+    map.putDouble(
+        "headZ",
+        face.headEulerAngleZ.toDouble()
+    )
+
+    map.putDouble(
+        "leftEye",
+        face.leftEyeOpenProbability?.toDouble()
+            ?: -1.0
+    )
+
+    map.putDouble(
+        "rightEye",
+        face.rightEyeOpenProbability?.toDouble()
+            ?: -1.0
+    )
+
+}
 
                 promise.resolve(map)
             }

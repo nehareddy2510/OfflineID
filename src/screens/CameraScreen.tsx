@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
+import AppModal from '../components/AppModal';
 
 import {
   Camera,
@@ -14,10 +14,8 @@ import {
 } from 'react-native-vision-camera';
 
 import CameraService from '../services/camera/CameraService';
-import FaceDetectionService from '../services/faceDetection/FaceDetectionService';
 import FaceRecognitionService from '../services/faceRecognition/FaceRecognitionService';
 import UserRepository from '../repositories/UserRepository';
-
 type Props = {
   mode: 'enroll' | 'verify';
   name?: string;
@@ -41,142 +39,55 @@ export default function CameraScreen({
 
   const device = useCameraDevice('front');
 
-  const {hasPermission, requestPermission} =
-    useCameraPermission();
-
-  const [busy, setBusy] =
-    useState(false);
-
-  useEffect(() => {
-
-    if (!hasPermission) {
-      requestPermission();
-    }
-
-  }, [
+  const {
     hasPermission,
     requestPermission,
-  ]);
+  } = useCameraPermission();
 
-  if (!hasPermission) {
+  const [busy, setBusy] = useState(false);
+  const [showModal,setShowModal]=useState(false);
+const [modalTitle,setModalTitle]=useState("");
 
-    return (
-      <View style={styles.center}>
-        <Text>
-          Camera permission required
-        </Text>
-      </View>
-    );
+const [modalMessage,setModalMessage]=useState("");
 
-  }
+const [modalSuccess,setModalSuccess]=useState(true);
 
-  if (!device) {
+ const handleCapture = async () => {
 
-    return (
-      <View style={styles.center}>
-        <Text>
-          No camera found
-        </Text>
-      </View>
-    );
-
-  }
-    const handleCapture = async () => {
-
-    if (!camera.current || busy) {
-      return;
-    }
-
+if (busy || !camera.current) {
+  return;
+}
     setBusy(true);
 
     try {
 
       const photo =
-        await camera.current.takePhoto();
+  await camera.current.takePhoto({
+    enableShutterSound: false,
+  });
 
       const id =
-        `${userId}_${Date.now()}`;
+  mode === "enroll"
+    ? `${userId}_${Date.now()}`
+    : `${Date.now()}`;
 
       const savedPath =
         await CameraService.savePhoto(
           photo.path,
           id,
         );
-
-      const detection =
-        await FaceDetectionService.detect(
-          savedPath,
-        );
-
-      if (
-        detection.faceCount !== 1
-      ) {
-
-        Alert.alert(
-          "Enrollment Failed",
-          `Detected ${detection.faceCount} faces.`,
-        );
-
-        return;
-
-      }
+        await new Promise(resolve =>
+  setTimeout(resolve, 500)
+);
 
       const embedding =
         await FaceRecognitionService.getEmbedding(
           savedPath,
         );
 
-      console.log(
-        "================================"
-      );
+    
 
-      console.log(
-        "EMBEDDING LENGTH",
-        embedding.length,
-      );
-
-      console.log(
-        embedding,
-      );
-
-      console.log(
-        "================================"
-      );
-
-      Alert.alert(
-        "Embedding",
-        JSON.stringify(
-
-embedding.slice(
-
-0,
-
-10,
-
-),
-
-),
-      );
-      console.log(
-
-"FULL EMBEDDING",
-
-embedding,
-
-);
-
-console.log(
-
-JSON.stringify(
-
-embedding,
-
-),
-
-);
-            if (
-        mode === "enroll"
-      ) {
+      if (mode === "enroll") {
 
         await UserRepository.create(
 
@@ -194,29 +105,19 @@ embedding,
 
         );
 
-        Alert.alert(
+        setModalSuccess(true);
 
-          "Enrollment Successful",
+setModalTitle(
+  "Enrollment Successful"
+);
 
-          `${name} enrolled successfully.`,
+setModalMessage(
+  `${name} has been enrolled successfully.`
+);
 
-          [
+setShowModal(true);
 
-            {
-
-              text: "OK",
-
-              onPress: () => onDone(),
-
-            },
-
-          ],
-
-        );
-
-      }
-
-      else {
+      } else {
 
         onDone({
 
@@ -232,75 +133,225 @@ embedding,
 
       }
 
-    }
+    } catch (e) {
 
-    catch (e) {
+   setModalSuccess(false);
 
-      console.log(e);
+setModalTitle(
+  "Capture Failed",
+);
 
-      Alert.alert(
+setModalMessage(
+  "Unable to capture your photo.\n\nPlease ensure your face is clearly visible and try again."
+);
 
-        "Capture Failed",
+setShowModal(true);
 
-        String(e),
-
-      );
-
-    }
-
-    finally {
+    } finally {
 
       setBusy(false);
 
     }
 
   };
+  
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
+
+useEffect(() => {
+
+  if (
+    mode !== "verify" ||
+    !hasPermission ||
+    !device
+  ) {
+    return;
+  }
+
+  const interval = setInterval(() => {
+
+    if (camera.current && !busy) {
+
+      clearInterval(interval);
+
+      handleCapture();
+
+    }
+
+  }, 300);
+
+  return () => clearInterval(interval);
+
+}, [
+  mode,
+  hasPermission,
+  device,
+  busy,
+]);
+
+  if (!hasPermission) {
     return (
-    <>
-      <Camera
-        ref={camera}
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={true}
-        photo={true}
-      />
-
-      <View style={styles.overlay}>
-        <Text style={styles.hint}>
-          {
-            mode === "enroll"
-              ? `Enrolling: ${name}`
-              : "Look at camera"
-          }
-        </Text>
+      <View style={styles.center}>
+        <Text>Camera permission required</Text>
       </View>
+    );
+  }
 
-      <View style={styles.captureContainer}>
-        <TouchableOpacity
-          style={[
-            styles.btn,
-            busy && {opacity: 0.5},
-          ]}
-          disabled={busy}
-          onPress={handleCapture}
-        >
-          <Text style={styles.btnText}>
-            {
-              busy
-                ? "Processing..."
-                : mode === "enroll"
-                ? "Enroll"
-                : "Verify"
-            }
+  if (!device) {
+    return (
+      <View style={styles.center}>
+        <Text>No camera found</Text>
+      </View>
+    );
+  }
+
+ 
+
+
+  return (
+  <View style={{flex: 1}}>
+
+  <Camera
+  ref={camera}
+  style={StyleSheet.absoluteFill}
+  device={device}
+  isActive={true}
+  photo={true}
+
+
+/>
+
+    <View style={styles.overlay}>
+
+      <Text style={styles.overlayTitle}>
+        {mode === "enroll"
+          ? "Enroll Employee"
+          : "Identity Verification"}
+      </Text>
+
+      <Text style={styles.overlaySubtitle}>
+        {mode === "enroll"
+          ? "Align your face inside the frame"
+          : "Looking at camera... verifying automatically"}
+      </Text>
+
+    </View>
+
+ 
+
+  {mode === "enroll" && (
+
+<View style={styles.captureContainer}>
+
+  <TouchableOpacity
+    style={[
+      styles.btn,
+      busy && {opacity:0.5},
+    ]}
+    disabled={busy}
+    onPress={handleCapture}
+  >
+
+    <Text style={styles.btnText}>
+      {busy
+        ? "Please wait..."
+        : "Capture Photo"}
+    </Text>
+
+  </TouchableOpacity>
+
+</View>
+
+)}
+    
+
+    {busy && (
+      <View style={styles.loadingOverlay}>
+
+        <View style={styles.loadingCard}>
+
+          <Text style={styles.loadingTitle}>
+            Processing
           </Text>
-        </TouchableOpacity>
+
+          <Text style={styles.loadingText}>
+            Please wait...
+          </Text>
+
+        </View>
+
       </View>
-    </>
-  );
+    )}
+
+    <AppModal
+      visible={showModal}
+      success={modalSuccess}
+      title={modalTitle}
+      message={modalMessage}
+      buttonText="Return Home"
+      onPress={() => {
+        setShowModal(false);
+        onDone();
+      }}
+    />
+
+  </View>
+);
 
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+  position: "absolute",
+  top: 60,
+  left: 20,
+  right: 20,
+  backgroundColor: "rgba(0,0,0,0.55)",
+  borderRadius: 16,
+  padding: 18,
+},
+
+overlayTitle: {
+  color: "#fff",
+  fontSize: 24,
+  fontWeight: "700",
+},
+
+overlaySubtitle: {
+  color: "#e5e7eb",
+  marginTop: 6,
+  fontSize: 15,
+},
+
+loadingOverlay: {
+  ...StyleSheet.absoluteFillObject,
+  justifyContent: "center",
+  alignItems: "center",
+  backgroundColor: "rgba(0,0,0,0.4)",
+},
+
+loadingCard: {
+  backgroundColor: "#fff",
+  padding: 24,
+  borderRadius: 18,
+  minWidth: 220,
+  alignItems: "center",
+},
+
+loadingTitle: {
+  fontSize: 22,
+  fontWeight: "700",
+  color: "#111827",
+},
+
+loadingText: {
+  marginTop: 10,
+  color: "#6b7280",
+  fontSize: 16,
+},
 
   center: {
     flex: 1,
@@ -308,32 +359,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  overlay: {
-    position: "absolute",
-    top: 60,
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 10,
-    borderRadius: 8,
-  },
-
-  hint: {
-    color: "#fff",
-    fontSize: 16,
-  },
-
   captureContainer: {
-    position: "absolute",
-    bottom: 60,
-    alignSelf: "center",
-  },
+  position: "absolute",
+  bottom: 60,
+  left: 20,
+  right: 20,
+},
 
   btn: {
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 50,
-  },
+  backgroundColor: "#2563eb",
+  paddingVertical: 18,
+  borderRadius: 50,
+  alignItems: "center",
+},
 
   btnText: {
     color: "#fff",

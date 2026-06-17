@@ -1,45 +1,226 @@
 import React from 'react';
-import {View, Text, StyleSheet, FlatList, TouchableOpacity} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  SafeAreaView,
+} from 'react-native';
+
 import {getAttendanceLogs} from '../database/database';
 
-export default function LogsScreen({onBack}: {onBack: () => void}) {
+export default function LogsScreen({
+  onBack,
+}: {
+  onBack: () => void;
+}) {
+
   const logs = getAttendanceLogs();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Attendance Logs</Text>
+
+    <SafeAreaView style={styles.container}>
+
+      <Text style={styles.title}>
+        Attendance Records
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Verification history
+      </Text>
+
       {logs.length === 0 ? (
-        <Text style={styles.empty}>No logs yet.</Text>
+
+        <View style={styles.emptyContainer}>
+
+          <Text style={styles.emptyIcon}>
+            📋
+          </Text>
+
+          <Text style={styles.emptyTitle}>
+            No Records Found
+          </Text>
+
+          <Text style={styles.emptyText}>
+            Attendance records will appear here.
+          </Text>
+
+        </View>
+
       ) : (
+
         <FlatList
           data={logs}
           keyExtractor={(item: any) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{paddingBottom: 20}}
           renderItem={({item}: any) => (
-            <View style={[styles.row, item.status === 'present' ? styles.ok : styles.fail]}>
-              <Text style={styles.name}>{item.user_name}</Text>
-              <Text style={styles.meta}>
-                {new Date(item.timestamp).toLocaleString()} · {item.status}
+
+            <View
+              style={[
+                styles.card,
+                item.status === 'present'
+                  ? styles.success
+                  : styles.failed,
+              ]}>
+
+              <View style={styles.rowTop}>
+
+                <Text style={styles.icon}>
+                  {item.status === 'present'
+                    ? '✅'
+                    : '❌'}
+                </Text>
+
+                <View style={{flex: 1}}>
+
+                  <Text style={styles.name}>
+                    {item.user_name}
+                  </Text>
+
+                  <Text style={styles.status}>
+
+                    {item.status === 'present'
+                      ? 'Attendance Marked'
+                      : 'Verification Failed'}
+
+                  </Text>
+
+                </View>
+
+              </View>
+
+              <Text style={styles.time}>
+                {new Date(
+                  item.timestamp,
+                ).toLocaleString()}
               </Text>
+
             </View>
+
           )}
         />
+
       )}
-      <TouchableOpacity style={styles.btn} onPress={onBack}>
-        <Text style={styles.btnText}>Back</Text>
+
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={onBack}>
+
+        <Text style={styles.backText}>
+          Back to Home
+        </Text>
+
       </TouchableOpacity>
-    </View>
+
+    </SafeAreaView>
+
   );
+
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20, paddingTop: 60},
-  title: {fontSize: 22, fontWeight: '700', marginBottom: 16},
-  empty: {fontSize: 15, color: '#6b7280', marginTop: 20, textAlign: 'center'},
-  row: {padding: 14, borderRadius: 8, marginBottom: 8},
-  ok: {backgroundColor: '#d1fae5'},
-  fail: {backgroundColor: '#fee2e2'},
-  name: {fontSize: 15, fontWeight: '600'},
-  meta: {fontSize: 12, color: '#374151', marginTop: 2},
-  btn: {backgroundColor: '#2563eb', padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 16},
-  btnText: {color: '#fff', fontSize: 16, fontWeight: '600'},
+
+  container: {
+    flex: 1,
+    backgroundColor: '#f4f7fb',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111827',
+  },
+
+  subtitle: {
+    color: '#6b7280',
+    fontSize: 16,
+    marginBottom: 25,
+  },
+
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 15,
+    elevation: 4,
+    borderLeftWidth: 6,
+  },
+
+  success: {
+    borderLeftColor: '#22c55e',
+  },
+
+  failed: {
+    borderLeftColor: '#ef4444',
+  },
+
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  icon: {
+    fontSize: 30,
+    marginRight: 15,
+  },
+
+  name: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  status: {
+    marginTop: 4,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+
+  time: {
+    marginTop: 15,
+    color: '#9ca3af',
+    fontSize: 13,
+  },
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  emptyIcon: {
+    fontSize: 70,
+  },
+
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 15,
+  },
+
+  emptyText: {
+    marginTop: 8,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+
+  backBtn: {
+    backgroundColor: '#2563eb',
+    padding: 18,
+    borderRadius: 15,
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+
+  backText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 18,
+  },
+
 });

@@ -1,24 +1,45 @@
 import React, {useState} from 'react';
-import {View, Text, StyleSheet, FlatList, TouchableOpacity, Alert} from 'react-native';
+import {
+View,
+Text,
+StyleSheet,
+FlatList,
+TouchableOpacity,
+} from 'react-native';
 import {getAllUsers, logAttendance} from '../database/database';
 import CameraScreen from './CameraScreen';
 import FaceRecognitionService from '../services/faceRecognition/FaceRecognitionService';
 
 import cosineSimilarity from '../utils/cosineSimilarity';
-
+import LivenessScreen
+from "./LivenessScreen";
+import AppModal from "../components/AppModal";
 
 type Props = {onBack: () => void};
 
-// function matchFace(capturedB64: string, storedB64: string): boolean {
-//   const diff = Math.abs(capturedB64.length - storedB64.length);
-//   const ratio = diff / storedB64.length;
-//   return ratio < 0.08; // within 8% size = likely same face/lighting
-// }
-
 
 export default function VerifyScreen({onBack}: Props) {
-  const [step, setStep] = useState<'list' | 'camera' | 'done'>('list');
-  const users = getAllUsers() as any[];
+const [step, setStep] =
+useState<
+'list'|
+'liveness'|
+'camera'|
+'done'
+>('list');  const users = getAllUsers() as any[];
+const [showModal, setShowModal] =
+  useState(false);
+
+const [modalSuccess, setModalSuccess] =
+  useState(true);
+
+const [modalTitle, setModalTitle] =
+  useState("");
+
+const [modalMessage, setModalMessage] =
+  useState("");
+
+const [retry, setRetry] =
+  useState(false);
 
   if (users.length === 0) {
     return (
@@ -31,20 +52,55 @@ export default function VerifyScreen({onBack}: Props) {
     );
   }
 
+if(step==="liveness"){
+
+  return(
+
+    <LivenessScreen
+
+      onComplete={()=>{
+        setStep("camera");
+      }}
+
+      onCancel={()=>{
+        setStep("list");
+      }}
+
+    />
+
+  );
+
+}
 if (step === 'camera') {
   return (
     <CameraScreen
       mode="verify"
       onDone={async (result) => {
-        if (!result) {
-          setStep('list');
-          return;
-        }
+       if (!result) {
+
+  setModalSuccess(false);
+
+  setModalTitle(
+    "Verification Failed",
+  );
+
+  setModalMessage(
+    "Unable to capture a valid face."
+  );
+
+ setRetry(true);
+
+setTimeout(() => {
+  setStep("list");
+  setShowModal(true);
+}, 50);
+
+  return;
+}
 
         const embedding =
-          await FaceRecognitionService.getEmbedding(
-            result.photo,
-          );
+            result.embedding!;
+          
 
         let bestUser: any = null;
         let bestScore = -1;
@@ -63,10 +119,7 @@ if (step === 'camera') {
             storedEmbedding,
           );
 
-          console.log(
-            user.name,
-            score,
-          );
+          
 
           if (score > bestScore) {
             bestScore = score;
@@ -74,14 +127,11 @@ if (step === 'camera') {
           }
         }
 
-        console.log(
-          'BEST SCORE',
-          bestScore,
-        );
+      
 
         if (
           bestUser &&
-          bestScore > 0.65
+          bestScore > 0.35
         ) {
           logAttendance(
             bestUser.id,
@@ -89,16 +139,21 @@ if (step === 'camera') {
             'present',
           );
 
-          Alert.alert(
-            'Verified',
-            `${bestUser.name}\nScore: ${bestScore}`,
-            [
-              {
-                text: 'OK',
-                onPress: onBack,
-              },
-            ],
-          );
+         setModalSuccess(true);
+
+setModalTitle(
+  "Verified Successfully",
+);
+
+setModalMessage(
+  `${bestUser.name}\nAttendance recorded successfully.`,
+);
+setRetry(false);
+
+setTimeout(() => {
+  setStep("list");
+  setShowModal(true);
+}, 50);
         } else {
           logAttendance(
             'unknown',
@@ -106,17 +161,22 @@ if (step === 'camera') {
             'failed',
           );
 
-          Alert.alert(
-            'No Match',
-            `Best Score: ${bestScore}`,
-            [
-              {
-                text: 'Retry',
-                onPress: () =>
-                  setStep('camera'),
-              },
-            ],
-          );
+         setModalSuccess(false);
+
+setModalTitle(
+  "Verification Failed",
+);
+
+setModalMessage(
+  "No match was found.",
+);
+
+setRetry(true);
+
+setTimeout(() => {
+  setStep("list");
+  setShowModal(true);
+}, 50);
         }
       }}
     />
@@ -126,22 +186,58 @@ if (step === 'camera') {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Verify — tap user or scan</Text>
-      <TouchableOpacity style={[styles.btn, {marginBottom: 16}]} onPress={() => setStep('camera')}>
-        <Text style={styles.btnText}>Scan Face (Auto-match)</Text>
+      <Text style={styles.title}>Verify Attendance</Text>
+<TouchableOpacity
+  style={[styles.btn, {marginBottom: 16}]}
+  onPress={() => setStep('liveness')}
+> 
+<Text style={styles.btnText}>Scan Face (Auto match)</Text>
       </TouchableOpacity>
       <FlatList
         data={users}
         keyExtractor={(item: any) => item.id}
         renderItem={({item}: any) => (
           <View style={styles.row}>
-            <Text style={styles.rowText}>{item.name} — {item.employee_id}</Text>
+            <Text style={styles.rowText}>{item.name}{' \u2014 '}{item.employee_id}</Text>
           </View>
         )}
       />
       <TouchableOpacity style={[styles.btn, {backgroundColor: '#6b7280', marginTop: 16}]} onPress={onBack}>
         <Text style={styles.btnText}>Back</Text>
       </TouchableOpacity>
+      <AppModal
+
+visible={showModal}
+
+success={modalSuccess}
+
+title={modalTitle}
+
+message={modalMessage}
+
+buttonText={
+  retry
+    ? "Try Again"
+    : "Return Home"
+}
+
+onPress={() => {
+
+  setShowModal(false);
+
+  if (retry) {
+
+    setStep("liveness");
+
+  } else {
+
+    onBack();
+
+  }
+
+}}
+
+/>
     </View>
   );
 }
